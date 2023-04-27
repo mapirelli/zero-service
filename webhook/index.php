@@ -1,28 +1,31 @@
 <?php
+require_once __DIR__ . '/../functions.php';
 /**
  * Webhook
  */
+$socketAddress = "tcp://*:5560";
 $remoteAddress = $_SERVER['REMOTE_ADDR'];
 $requestMethod = $_SERVER['REQUEST_METHOD'];
+$channel = "XAUUSD.r";
 
 if ($requestMethod === 'POST') {
     $alertPayload = file_get_contents('php://input');
-    $client = new Client();
+    $client = new Client($socketAddress);
     if ($client->isValidPayload($alertPayload)) {
-        $client->sendAlert($remoteAddress, $alertPayload);
+        $client->publishAlert($channel, $alertPayload);
     }
 }
 
 if ($requestMethod === 'GET') {
+    echo("Hello world");
     if ($_GET && isset($_GET['alert'])) {
         $alert = $_GET['alert'];
         if ($alert == 'buy' || $alert == 'sell') {
-            echo("Alert created");
             $alertTester = new AlertTester();
             $alertPayload  = $alertTester->getPayload($alert);
-            $client = new Client();
+            $client = new Client($socketAddress);
             if ($client->isValidPayload($alertPayload)) {
-                $client->sendAlert($remoteAddress, $alertPayload);
+                $client->publishAlert($channel, $alertPayload);
             }
         }
     }
@@ -30,29 +33,57 @@ if ($requestMethod === 'GET') {
 
 class Client {
     
+    private $socketAddress;
+
+    private $identity;
+
+    static $messageLifeTime = 30000; //(-1 forever, 0 right now, > 0 expiration time) in milliseconds   
+
+    public function __construct(string $socketAddress, string $identity = 'webhook')
+    {
+        $this->socketAddress = $socketAddress;
+        $this->identity = $identity;
+    }
+
     public function isValidPayload(string $payload) {
         return TRUE;
     }
 
+    public function publishAlert(string $channel, string $payload) {
+
+        $context = new ZMQContext();
+        $socket = new ZMQSocket($context, ZMQ::SOCKET_PUB);
+        //$socket->setSockOpt(ZMQ::SOCKOPT_IDENTITY, $this->identity); not valid for SOCKET_PUB
+        //$socket->setSockOpt(ZMQ::SOCKOPT_LINGER, self::$messageLifeTime);
+        $socket->bind($this->socketAddress);
+        //send message
+        usleep (500000);
+        $socket->send($channel, ZMQ::MODE_SNDMORE);
+        $socket->send($payload);
+        usleep (1000);
+
+    }
+
     public function sendAlert(string $sender, string $payload) {
-        $waitTimeBeforeRemoveDeliveredMessages = 0; //5 seconds (-1 never, 0 right now) in milliseconds
         $context = new ZMQContext();
         $socket = new ZMQSocket($context, ZMQ::SOCKET_DEALER);
-        $socket->setSockOpt(ZMQ::SOCKOPT_IDENTITY, $sender);
-        $socket->setSockOpt(ZMQ::SOCKOPT_LINGER, $waitTimeBeforeRemoveDeliveredMessages);
-        $socket->connect("tcp://localhost:5556");
+        $socket->setSockOpt(ZMQ::SOCKOPT_IDENTITY, $this->identity);
+        $socket->setSockOpt(ZMQ::SOCKOPT_LINGER, self::$messageLifeTime);
+        $socket->connect($this->socketAddress);
         $socket->send($payload);
-        usleep(5000); //5 millisecondi //let the time to send the message
+        usleep(1000); //1000 microsecondi = 1 millisecondo //we let time to send the message
     }
 }
 
 class AlertTester {
-    
+
     protected $ticker;
+
     protected $timeframe;
+
     static $exchange = 'TEST';
 
-    public function __construct(string $ticker = 'XAUUSD', int $timeframe = 1)
+    public function __construct(string $ticker = 'XAUUSD', string $timeframe = '1')
     {
         $this->ticker = $ticker;
         $this->timeframe = $timeframe;

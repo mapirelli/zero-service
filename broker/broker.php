@@ -1,52 +1,45 @@
 <?php
-/*
- *  Reading from multiple sockets
- *  This version uses zmq_poll()
- * @author Ian Barber <ian(dot)barber(at)gmail(dot)com>
- */
+    require_once __DIR__ . '/../functions.php';
+    //Frontend socket wait messages from webhook client
+    $context = new ZMQContext();
+    $frontend = new ZMQSocket($context, ZMQ::SOCKET_DEALER);
+    $frontend->bind("tcp://*:5580"); //Connect to alert server
 
- $context = new ZMQContext();
+    //Backend socket talks to EA clients
+    $backend = new ZMQSocket($context, ZMQ::SOCKET_DEALER);
+    $backend->bind("tcp://*:5570");
 
- //  Connect to alert server
- $frontend = new ZMQSocket($context, ZMQ::SOCKET_ROUTER);
- $frontend->bind("tcp://*:5556");
- //$frontend->connect("tcp://*:5556");
- 
- //  Connect to EA server
- //$subscriber = new ZMQSocket($context, ZMQ::SOCKET_SUB);
- //$subscriber->connect("tcp://localhost:5555");
- //$subscriber->setSockOpt(ZMQ::SOCKOPT_SUBSCRIBE, "EURUSD");
- 
- //  Initialize poll set
- $poll = new ZMQPoll();
- $poll->add($frontend, ZMQ::POLL_IN);
- //$poll->add($subscriber, ZMQ::POLL_IN);
- 
- $readable = $writeable = array();
- 
- //  Process messages from both sockets
- while (true) {
-     $events = $poll->poll($readable, $writeable);
-     if ($events > 0) {
-         foreach ($readable as $socket) {
-             if ($socket === $frontend) {
+    //Initialize poll set
+    $poll = new ZMQPoll();
+    $poll->add($frontend, ZMQ::POLL_IN);
+    $poll->add($backend, ZMQ::POLL_IN);
+    
+    $read = $write = array();
+    $counter = 1;
+    //  Process messages from both sockets
+    while (true) {
 
-                $parts = array();
-                while (true) {
-                    $parts[] = $socket->recv();
-                    if (!$socket->getSockOpt(ZMQ::SOCKOPT_RCVMORE)) {
-                        break;
-                    }
+        $events = 0; /* Amount of events retrieved */
+        $events = $poll->poll($read, $write);
+        
+        if ($events > 0) {
+            
+            foreach ($read as $socket) {
+
+                if ($socket === $frontend) {
+
+                    $body = function_get_parts_body(function_get_recv_parts($socket));
+                    printf ("%d webhook sent: [%s]%s", $counter, $counter . "-" . $body, PHP_EOL);
+                    $backend->send($counter . "-" . $body);
+                    
+                    $counter++;
+
+                } elseif ($socket === $backend) {
+                    $body = function_get_parts_body(function_get_recv_parts($socket));
+                    printf ("%d worker sent: [%s]%s", $counter, $counter . "-" . $body,  PHP_EOL);
+                    //$frontend->send($body);
                 }
-                $message = $parts[count($parts)-1];
-                printf ("[%s] %s", $message, PHP_EOL);
-                                
-             //} elseif ($socket === $subscriber) {
-                 // $mesage = $socket->recv();
-                 // Process weather update
-             }
-         }
-     }
- }
- 
- //  We never get here
+            }
+        }
+    }
+    //  We never get here
