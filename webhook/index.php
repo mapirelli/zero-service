@@ -132,6 +132,7 @@ class AlertTester {
             'alert_ticker' => $symbol,
             'alert_timeframe' => $timeframe,
             'candle_time' => $time,
+            'candle_open' => $price,
             'candle_close' => $price,
             'candle_volume' => 100,
             'strategy_order_action' => $action,
