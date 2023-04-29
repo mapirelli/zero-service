@@ -1,0 +1,20 @@
+{
+"alert_name":"SuperTrend(10, 0.9) 30M",
+"auth_token":"auth_token",
+"alert_time":"{{timenow}}",
+"alert_exchange":"{{exchange}}",
+"alert_ticker":"{{ticker}}",
+"alert_timeframe":"{{interval}}",
+"candle_time":"{{time}}",
+"candle_close":"{{close}}",
+"candle_volume":"{{volume}}",
+"strategy_order_action":"{{strategy.order.action}}",
+"strategy_order_price":"{{strategy.order.price}}",
+"strategy_order_contracts":"{{strategy.order.contracts}}",
+"strategy_order_tp":"6",
+"strategy_order_sl":"2",
+"strategy_market_position":"{{strategy.market_position}}",
+"strategy_position_size":"{{strategy.position_size}}",
+"strategy_prev_market_position":"{{strategy.prev_market_position}}",
+"strategy_prev_market_position_size":"{{strategy.prev_market_position_size}}"
+}
