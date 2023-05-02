@@ -3,10 +3,14 @@
 /**
  * Webhook
  */
+
 $socketAddress = "tcp://*:5560";
 $authToken = "auth_token";
 $remoteAddress = $_SERVER['REMOTE_ADDR'];
 $requestMethod = $_SERVER['REQUEST_METHOD'];
+
+define ('ALERT_SYMBOL','alert_symbol');
+define ('AUTH_TOKEN','auth_token');
 
 if ($requestMethod === 'POST' ) {
     $payload = json_decode(file_get_contents('php://input'), true);
@@ -19,7 +23,7 @@ if ($requestMethod === 'GET') {
     $testReq = new TestRequest();
     if ($testReq->isValid()) {
         $alertTest = new AlertTester($authToken);
-        $payload = $alertTest->getPayload($testReq->getSymbol(), $testReq->getAction(), $testReq->getContracts());
+        $payload = $alertTest->getPayload($testReq->getSymbol(), $testReq->getAction(), $testReq->getVolume());
         $client = new Publisher($socketAddress, $authToken);
         if ($client->publish($payload))
             echo(" & published");
@@ -43,12 +47,12 @@ class Publisher {
     protected function isValidPayload(array $payload): bool {
         
         $valid = (
-            isset($payload['auth_token']) &&
             isset($payload['alert_time']) &&
-            isset($payload['alert_ticker']) &&
-            isset($payload['strategy_order_action']) &&
-            isset($payload['strategy_order_price']) &&
-            isset($payload['strategy_order_contracts'])
+            isset($payload['alert_symbol']) &&
+            isset($payload['order_action']) &&
+            isset($payload['order_price']) &&
+            isset($payload['order_volume']) &&
+            isset($payload['auth_token'])
         );
 
         error_log('Processing payload...');
@@ -63,10 +67,10 @@ class Publisher {
     }
 
     protected function isAuthorized(array $payload): bool {
-        if ($this->authToken == $payload['auth_token'])
+        if ($this->authToken == $payload[AUTH_TOKEN])
             return TRUE;
 
-        error_log('Not authorized token: ' . $payload['auth_token']);
+        error_log('Not authorized token: ' . $payload[AUTH_TOKEN]);
         return FALSE;
     }
 
@@ -79,7 +83,7 @@ class Publisher {
             $socket->bind($this->socketAddress);
             //send message
             usleep (500000);
-            $symbol = $payload['alert_ticker'];
+            $symbol = $payload[ALERT_SYMBOL];
             $socket->send($symbol, ZMQ::MODE_SNDMORE);
             $socket->send(json_encode($payload));
             usleep (10000);
@@ -112,43 +116,26 @@ class AlertTester {
         $this->authToken = $authToken;
     }
 
-    public function getPayload(string $symbol, string $action, int $contracts): array {
+    public function getPayload(string $symbol, string $action, float $volume): array {
         $price = 0;
-        $timeframe = '30M';
+        $timeframe = '5M';
         $time = date('Y-m-dTH:i:sZ');
-        $position = 'long';
-        $previus_position = 'sell';
-        $size = $contracts * 2;
-        if ($action == 'sell') {
-            $position = 'short';
-            $previus_position = 'buy';
-            $size = $size * -1;
-        }
         return [
             'auth_token' => $this->authToken,
             'alert_name' => 'Test payload',
             'alert_time' => $time,
             'alert_exchange' => $this->exchange,
-            'alert_ticker' => $symbol,
+            'alert_symbol' => $symbol,
             'alert_timeframe' => $timeframe,
-            'candle_time' => $time,
-            'candle_open' => $price,
-            'candle_close' => $price,
-            'candle_volume' => 100,
-            'strategy_order_action' => $action,
-            'strategy_order_price' => $price,
-            "strategy_order_contracts" => $contracts,
-            'strategy_order_tp' => 6, //value %
-            'strategy_order_sl' => 2, //value %
-            'strategy_market_position' => $position,
-            'strategy_position_size' => $size,
-            'strategy_prev_market_position' => $previus_position,
-            'strategy_prev_market_position_size' => $size * -1,
+            'order_action' => $action,
+            'order_price' => $price,
+            "order_volume" => $volume,
+            'order_tp' => 3,
+            'order_sl' => 1,
+            'order_magic' => 1000
         ];
     }
 }
-
-
 
 class TestRequest {
     
@@ -156,14 +143,14 @@ class TestRequest {
 
     private $symbol;
 
-    private $contracts;
+    private $volume;
 
     public function isValid() {
         if ($_GET && isset($_GET['action']) && isset($_GET['symbol'])) {
             if (in_array($_GET['action'], ['buy','sell'])) {
                 $this->action = $_GET['action'];
                 $this->symbol = $_GET['symbol'];
-                $this->contracts = isset($_GET['contracts']) ? $_GET['contracts'] : 1;
+                $this->volume = isset($_GET['volume']) ? $_GET['volume'] : 0.1;
                 return TRUE;
             }
         }
@@ -180,8 +167,8 @@ class TestRequest {
         return $this->action;
     }
 
-    public function getContracts()
+    public function getVolume()
     {
-        return $this->contracts;
+        return $this->volume;
     }
 }
