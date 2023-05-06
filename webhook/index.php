@@ -82,11 +82,11 @@ class Publisher {
             //$socket->setSockOpt(ZMQ::SOCKOPT_LINGER, self::$messageLifeTime);
             $socket->bind($this->socketAddress);
             //send message
-            usleep (500000);
+            usleep (600000);
             $symbol = $payload[ALERT_SYMBOL];
             $socket->send($symbol, ZMQ::MODE_SNDMORE);
             $socket->send(json_encode($payload));
-            usleep (10000);
+            usleep (20000);
             return TRUE;
         }
         return FALSE;
@@ -130,12 +130,14 @@ class AlertTester {
             'order_action' => $action,
             'order_price' => $price,
             "order_volume" => $volume,
-            'order_tp' => 3,
-            'order_sl' => 1,
-            'order_magic' => 1000
+            'order_tp' => 0.1,
+            'order_sl' => 0.15,
+            'order_magic' => 9999
         ];
     }
 }
+
+
 
 class TestRequest {
     
@@ -146,11 +148,11 @@ class TestRequest {
     private $volume;
 
     public function isValid() {
-        if ($_GET && isset($_GET['action']) && isset($_GET['symbol'])) {
+        if ($_GET && isset($_GET['action']) && isset($_GET['symbol']) && isset($_GET['volume'])) {
             if (in_array($_GET['action'], ['buy','sell'])) {
                 $this->action = $_GET['action'];
                 $this->symbol = $_GET['symbol'];
-                $this->volume = isset($_GET['volume']) ? $_GET['volume'] : 0.1;
+                $this->volume = $_GET['volume'];
                 return TRUE;
             }
         }
