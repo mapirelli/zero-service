@@ -1,5 +1,4 @@
 <?php
-//require_once __DIR__ . '/../functions.php';
 /**
  * Webhook
  */
@@ -82,11 +81,11 @@ class Publisher {
             //$socket->setSockOpt(ZMQ::SOCKOPT_LINGER, self::$messageLifeTime);
             $socket->bind($this->socketAddress);
             //send message
-            usleep (600000);
+            usleep (550000);
             $symbol = $payload[ALERT_SYMBOL];
             $socket->send($symbol, ZMQ::MODE_SNDMORE);
             $socket->send(json_encode($payload));
-            usleep (20000);
+            usleep (50000);
             return TRUE;
         }
         return FALSE;
@@ -119,11 +118,13 @@ class AlertTester {
     public function getPayload(string $symbol, string $action, float $volume): array {
         $price = 0;
         $timeframe = '5M';
-        $time = date('Y-m-dTH:i:sZ');
+        $date = date_create('now', timezone_open('UTC'));
+        $alert_time = date_format($date, 'Y-m-d\TH:i:s\Z');
+        
         return [
             'auth_token' => $this->authToken,
             'alert_name' => 'Test payload',
-            'alert_time' => $time,
+            'alert_time' => $alert_time,
             'alert_exchange' => $this->exchange,
             'alert_symbol' => $symbol,
             'alert_timeframe' => $timeframe,
